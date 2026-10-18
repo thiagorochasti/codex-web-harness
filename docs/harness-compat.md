@@ -43,6 +43,23 @@ curl http://127.0.0.1:17841/v1/chat/completions \
   -d '{"model":"chatgpt-web/gpt-6-sol","messages":[{"role":"user","content":"Responda OK"}]}'
 ```
 
+### Running alongside the official installed launcher
+
+To use the corrected source without replacing the official launcher, run
+`bun run scripts/serve-harness.ts` from this checkout, then use
+`http://127.0.0.1:17941/v1` as the harness base URL.
+
+This entry point requires the installed launcher in `full` mode. It builds the checkout's browser
+helper and uses the launcher's external-owner broker, so the existing MCP connector resolves the
+same tool tokens. Browser diagnostics and turn state are isolated under `runtime/harness/`.
+The extra HTTP listener has its own local broker socket and does not replace the installed daemon.
+The launcher must remain available while processing requests.
+
+On this Windows deployment, the scheduled task `Codex Web Harness Bridge` runs this entry point
+at user logon with no execution time limit and ignores duplicate starts. The Hermes `codex-web`
+provider uses port `17941`; the old shim on `17842` is stopped. Restart an already-open Hermes
+process to reload its provider configuration, then start a fresh conversation.
+
 ## Behaviour
 
 ### Session identity
