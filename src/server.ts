@@ -23,6 +23,7 @@ import type { AppConfig } from "./config";
 import { providerConfig } from "./config";
 import { AsyncEventQueue } from "./event-queue";
 import { readJsonRequestBody } from "./http-body";
+import { chatCompletionsRequest } from "./harness-compat/handler";
 import { httpStatusFromTerminalError } from "./lib/errors";
 import { createHash } from "node:crypto";
 import { augmentNativeModelCatalog } from "./model-catalog";
@@ -52,7 +53,7 @@ import type { CodexProviderConfig } from "./types";
 import type { ProviderAdapter } from "./adapters/base";
 import { VERSION } from "./version";
 
-type HttpTrackedEndpoint = "models" | "responses" | "compact" | "search" | "unspecified" | NativeImageEndpoint;
+type HttpTrackedEndpoint = "models" | "responses" | "compact" | "search" | "chat-completions" | "unspecified" | NativeImageEndpoint;
 
 export interface NativeCodexTurnIdentity {
   threadId: string;
@@ -1232,6 +1233,19 @@ export function startServer(
           status: 426,
           headers: { "content-type": "text/plain; charset=utf-8" },
         });
+      }
+      if (req.method === "POST" && url.pathname === "/v1/chat/completions") {
+        if (draining) return formatErrorResponse(503, "server_error", "codex-chatgpt-web is draining for a requested service operation");
+        // Compatibility surface for harnesses that are not Codex: the payload is translated and
+        // executed by the same in-process Responses handler, so no second daemon is required.
+        return httpTurns.track(
+          signal => chatCompletionsRequest(new Request(req, { signal }), {
+            invokeResponses: request => responseRequest(request, config, dependencies.adapterFactory, { rememberState: false }),
+          }),
+          req.signal,
+          process.platform,
+          "chat-completions",
+        );
       }
       if (req.method === "POST" && url.pathname === "/v1/responses") {
         if (draining) return formatErrorResponse(503, "server_error", "codex-chatgpt-web is draining for a requested service operation");

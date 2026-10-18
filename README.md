@@ -26,6 +26,13 @@
 
 Use the ChatGPT Web models available on your account, including Pro, from Codex’s native model picker—with ChatGPT Web’s separate usage limits, without spending your Work or Codex quota. Keep the same interface, tasks, images, and streaming.
 
+> **Fork notice.** This repository is a modified fork of
+> [miuuyy/codex-chatgpt-web](https://github.com/miuuyy/codex-chatgpt-web). Its addition is a
+> Chat Completions compatibility surface, so harnesses that are not Codex can use the same
+> ChatGPT Web models — see [docs/harness-compat.md](docs/harness-compat.md).
+> Everything else (browser automation, launcher, tunnel, MCP, packaging) is upstream work.
+> Not affiliated with OpenAI.
+
 Full harness mode connects ChatGPT to the current task’s files, terminal, tools, and approvals through MCP. Conversations stay tied to your Codex task, so you can keep working as the context grows.
 
 <div id="get-started"><a id="quick-start"></a></div>
@@ -40,6 +47,31 @@ Full harness mode connects ChatGPT to the current task’s files, terminal, tool
 4. **For coding with tools**, open **MCP** in the launcher and complete the Full harness setup below.
 
 The app includes its browser and runtime. No separate Chrome, Node, or Bun installation is needed.
+
+## Use from another harness
+
+The daemon also answers `POST /v1/chat/completions`, so any OpenAI-compatible harness (Hermes Agent,
+omp, OmniRoute, custom scripts) can drive the models the Codex picker shows. The translation runs
+in-process: no second daemon, no extra port.
+
+| Setting | Value |
+| --- | --- |
+| Base URL | `http://127.0.0.1:17841/v1` |
+| Model | `chatgpt-web/gpt-6-sol` (or another `chatgpt-web/*` row) |
+| API key | any non-empty value; authentication is the browser session |
+| Session | `x-codex-thread-id: <stable conversation id>` |
+
+```bash
+curl http://127.0.0.1:17841/v1/chat/completions \
+  -H 'content-type: application/json' \
+  -H 'x-codex-thread-id: demo-thread' \
+  -d '{"model":"chatgpt-web/gpt-6-sol","messages":[{"role":"user","content":"Responda OK"}]}'
+```
+
+Send the full history on every request: the daemon stores no conversation state. Tool calls,
+streaming, usage and the legacy `functions` shape are translated too. Local shell tools still need
+the `Codex Native2` connector from the MCP page. Details and limitations:
+[docs/harness-compat.md](docs/harness-compat.md).
 
 <details>
 <summary><strong>Terminal install, updates & repair</strong></summary>

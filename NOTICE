@@ -1,0 +1,28 @@
+This product is a modified fork of codex-chatgpt-web.
+
+Upstream: https://github.com/miuuyy/codex-chatgpt-web
+Upstream license: MIT (see LICENSE)
+Original work: Copyright (c) 2026 codex-chatgpt-web contributors
+Modifications: Copyright (c) 2026 codex-web-harness contributors
+
+What this fork adds
+-------------------
+
+A `POST /v1/chat/completions` compatibility surface, so harnesses that only speak Chat
+Completions can drive the same ChatGPT Web models the native Codex picker exposes. The
+translation runs in-process; there is no second daemon and no extra port.
+
+The rest of the product — browser automation, launcher, tunnel integration, MCP connector,
+compaction, model catalog, packaging — is upstream work and is not modified.
+
+Trademarks and affiliation
+--------------------------
+
+This is independent software. It is not affiliated with, endorsed by, or sponsored by OpenAI,
+and it does not bypass authentication or access controls. "ChatGPT", "OpenAI" and "Codex" are
+trademarks of their respective owners. The upstream project name and its authors are credited
+above; this fork does not claim to be the original.
+
+Binaries built from this fork are not platform-signed. Before distributing them, change the
+application identity (product name, app id, profile directory, update feed) so they can coexist
+with an official installation.
