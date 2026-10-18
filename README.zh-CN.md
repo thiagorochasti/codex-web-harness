@@ -41,6 +41,35 @@
 
 应用已包含浏览器和运行时，无需另外安装 Chrome、Node 或 Bun。
 
+
+> **Fork 说明。** 本仓库是
+> [miuuyy/codex-chatgpt-web](https://github.com/miuuyy/codex-chatgpt-web) 的修改版分支。新增的是
+> Chat Completions 兼容层，使非 Codex 的 harness 也能使用同样的 ChatGPT Web 模型 —— 见
+> [docs/harness-compat.md](docs/harness-compat.md)。其余部分（浏览器自动化、启动器、隧道、MCP、打包）
+> 均为上游工作。与 OpenAI 无关联。
+## 在其他 harness 中使用
+
+守护进程同时提供 `POST /v1/chat/completions`，因此任何兼容 OpenAI 的 harness（Hermes Agent、omp、
+OmniRoute、自定义脚本）都可以调用 Codex 选择器中的模型。转换在进程内完成：没有第二个守护进程，也没有额外端口。
+
+| 设置 | 值 |
+| --- | --- |
+| Base URL | `http://127.0.0.1:17841/v1` |
+| 模型 | `chatgpt-web/gpt-6-sol`（或其他 `chatgpt-web/*`） |
+| API key | 任意非空值；认证来自浏览器会话 |
+| 会话 | `x-codex-thread-id: <稳定的会话 id>` |
+
+```bash
+curl http://127.0.0.1:17841/v1/chat/completions \
+  -H 'content-type: application/json' \
+  -H 'x-codex-thread-id: demo-thread' \
+  -d '{"model":"chatgpt-web/gpt-6-sol","messages":[{"role":"user","content":"Responda OK"}]}'
+```
+
+每次请求都要发送完整历史：守护进程不保存会话状态。工具调用、流式输出、用量和旧版 `functions` 形状也会转换。
+本地 shell 工具仍需要 MCP 页面中的 `Codex Native2` 连接器。详情与限制：
+[docs/harness-compat.md](docs/harness-compat.md)。
+
 <details>
 <summary><strong>命令行安装、更新与修复</strong></summary>
 

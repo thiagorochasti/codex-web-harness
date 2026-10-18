@@ -41,6 +41,36 @@ Full ハーネスモードでは、MCP を通じて ChatGPT を現在のタス�
 
 ブラウザーとランタイムはアプリに含まれています。Chrome、Node、Bun の別途インストールは不要です。
 
+
+> **フォークについて。** このリポジトリは
+> [miuuyy/codex-chatgpt-web](https://github.com/miuuyy/codex-chatgpt-web) の改変フォークです。追加されたのは
+> Chat Completions 互換レイヤーで、Codex 以外のハーネスからも同じ ChatGPT Web モデルを利用できます —
+> [docs/harness-compat.md](docs/harness-compat.md) を参照。それ以外（ブラウザ自動化、ランチャー、トンネル、
+> MCP、パッケージング）は上流の成果物です。OpenAI とは無関係です。
+## 他のハーネスから使う
+
+デーモンは `POST /v1/chat/completions` も提供するため、OpenAI 互換のハーネス（Hermes Agent、omp、OmniRoute、
+独自スクリプト）から Codex のピッカーと同じモデルを利用できます。変換はプロセス内で行われ、2 つ目のデーモンも
+追加ポートもありません。
+
+| 設定 | 値 |
+| --- | --- |
+| Base URL | `http://127.0.0.1:17841/v1` |
+| モデル | `chatgpt-web/gpt-6-sol`（または他の `chatgpt-web/*`） |
+| API key | 任意の非空値。認証はブラウザセッション |
+| セッション | `x-codex-thread-id: <安定した会話 id>` |
+
+```bash
+curl http://127.0.0.1:17841/v1/chat/completions \
+  -H 'content-type: application/json' \
+  -H 'x-codex-thread-id: demo-thread' \
+  -d '{"model":"chatgpt-web/gpt-6-sol","messages":[{"role":"user","content":"Responda OK"}]}'
+```
+
+毎回のリクエストで履歴全体を送ってください。デーモンは会話状態を保存しません。ツール呼び出し、ストリーミング、
+使用量、旧来の `functions` 形式も変換されます。ローカル shell ツールには MCP ページの `Codex Native2`
+コネクタが引き続き必要です。詳細と制限: [docs/harness-compat.md](docs/harness-compat.md)。
+
 <details>
 <summary><strong>ターミナルからのインストール・更新・修復</strong></summary>
 

@@ -41,6 +41,36 @@ Full harness 모드는 MCP를 통해 ChatGPT를 현재 작업의 파일, 터미�
 
 브라우저와 런타임이 앱에 포함되어 있습니다. Chrome, Node, Bun을 따로 설치할 필요가 없습니다.
 
+
+> **포크 안내.** 이 저장소는
+> [miuuyy/codex-chatgpt-web](https://github.com/miuuyy/codex-chatgpt-web)의 수정 포크입니다. 추가된 것은
+> Chat Completions 호환 계층으로, Codex가 아닌 하네스에서도 동일한 ChatGPT Web 모델을 사용할 수 있습니다 —
+> [docs/harness-compat.md](docs/harness-compat.md) 참고. 나머지(브라우저 자동화, 런처, 터널, MCP, 패키징)는
+> 업스트림 작업입니다. OpenAI와 무관합니다.
+## 다른 하네스에서 사용하기
+
+데몬은 `POST /v1/chat/completions`도 제공하므로, OpenAI 호환 하네스(Hermes Agent, omp, OmniRoute, 사용자
+스크립트)에서 Codex 선택기의 모델을 그대로 사용할 수 있습니다. 변환은 프로세스 내에서 이루어지며 두 번째
+데몬이나 추가 포트가 없습니다.
+
+| 설정 | 값 |
+| --- | --- |
+| Base URL | `http://127.0.0.1:17841/v1` |
+| 모델 | `chatgpt-web/gpt-6-sol` (또는 다른 `chatgpt-web/*`) |
+| API 키 | 비어 있지 않은 임의 값. 인증은 브라우저 세션 |
+| 세션 | `x-codex-thread-id: <안정적인 대화 id>` |
+
+```bash
+curl http://127.0.0.1:17841/v1/chat/completions \
+  -H 'content-type: application/json' \
+  -H 'x-codex-thread-id: demo-thread' \
+  -d '{"model":"chatgpt-web/gpt-6-sol","messages":[{"role":"user","content":"Responda OK"}]}'
+```
+
+매 요청마다 전체 기록을 보내세요. 데몬은 대화 상태를 저장하지 않습니다. 도구 호출, 스트리밍, 사용량, 레거시
+`functions` 형식도 변환됩니다. 로컬 shell 도구는 여전히 MCP 페이지의 `Codex Native2` 커넥터가 필요합니다.
+자세한 내용과 제한: [docs/harness-compat.md](docs/harness-compat.md).
+
 <details>
 <summary><strong>터미널 설치, 업데이트 및 복구</strong></summary>
 
