@@ -95,6 +95,46 @@ are forwarded **without** the `reasoning` field, so the model default applies:
 Non-streaming responses are ordinary `chat.completion` objects with `usage` mapped from the
 upstream token counters.
 
+
+## Known errors
+
+### `INVALID_ARGUMENT: This Codex turn did not advertise a native command tool or the native exec gateway`
+
+Symptom: the model answers in prose claiming it tried "Codex Native" and failed, instead of calling
+your declared function tool.
+
+Cause: in `full` mode the browser tab carries the `Codex Native2` connector, and ChatGPT routes
+shell-shaped requests to it. The connector's `codex_exec` resolves a **native** `exec_command` /
+`shell_command` from the outer Codex turn (`src/adapters/chatgpt-web/mcp-server.ts`). A Chat
+Completions client does not advertise that native registry, so the call cannot be served — with or
+without the tunnel running.
+
+Measured behaviour on 6.1.10 (same request, only names changed):
+
+| Declared tool | Prompt wording | Result |
+| --- | --- | --- |
+| `run_echo` (neutral description) | "use run_echo" | declared function called |
+| `run_command` (shell description) | "use run_command" | declared function called |
+| `terminal` (neutral description) | "use terminal" | routed to Codex Native, fails |
+| `exec` (neutral description) | "use exec" | routed to Codex Native, fails |
+
+Renaming the declared tool alone does not help: when the prompt says "terminal", the model still
+prefers the connector.
+
+What to do:
+
+1. Use declared function tools whose purpose is not shell execution (file, HTTP, database, custom
+   APIs). Those work.
+2. Do shell work through Codex itself, which owns the native registry.
+3. For harness-only installations, run the app in `browser-only` mode so no connector is attached
+   and the model only sees declared tools.
+
+### `GPT-6 Sol (Web) does not support effort "none" for this account`
+
+Already handled: unsupported efforts are dropped before the turn is sent, so the model default
+applies. If you see this from a client, it is not talking to this fork's daemon (check the base
+URL) or is running an older build.
+
 ## Limitations
 
 - **Local tools need the tunnel.** In `full` mode ChatGPT is told about the Codex Native harness;
