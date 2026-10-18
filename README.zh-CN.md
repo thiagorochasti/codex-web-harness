@@ -66,9 +66,9 @@ curl http://127.0.0.1:17841/v1/chat/completions \
   -d '{"model":"chatgpt-web/gpt-6-sol","messages":[{"role":"user","content":"Responda OK"}]}'
 ```
 
-每次请求都要发送完整历史：守护进程不保存会话状态。工具调用、流式输出、用量和旧版 `functions` 形状也会转换。
-本地 shell 工具仍需要 MCP 页面中的 `Codex Native2` 连接器。详情与限制：
-[docs/harness-compat.md](docs/harness-compat.md)。
+每次请求发送完整历史，并从第一次工具请求开始保持会话 ID 不变。调用方维护历史，broker 保留待处理的工具调用。
+Hermes 的 `terminal` 与原生 `shell_command` 双向转换。请保持 `full` 模式和 `Codex Native2` 连接器可用。
+详情与限制：[docs/harness-compat.md](docs/harness-compat.md)。
 
 <details>
 <summary><strong>命令行安装、更新与修复</strong></summary>

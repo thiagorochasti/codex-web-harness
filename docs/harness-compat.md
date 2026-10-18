@@ -32,7 +32,7 @@ a thin edge: the compatibility module plus one route.
 | API key | any non-empty value; the daemon authenticates through the browser session |
 | Session header | `x-codex-thread-id: <stable conversation id>` |
 
-3. Send the full conversation history on every request. The daemon stores nothing.
+3. Send the full conversation history on every request. The compatibility layer does not persist it; the upstream broker keeps pending tool calls until their results arrive.
 
 Example:
 
@@ -47,14 +47,16 @@ curl http://127.0.0.1:17841/v1/chat/completions \
 
 ### Session identity
 
-`x-codex-thread-id` (or `conversation_id` / `thread_id` in the body) becomes the `thread_id` of the
-turn envelope. It is reused **only when the history contains an `assistant` message**, because that
-is what lets the daemon build the continuation prompt for a retained ChatGPT conversation. Without
-it the request is isolated instead of failing with
-`Launcher reused a ChatGPT conversation without a continuation prompt`.
+`x-codex-thread-id` (or `conversation_id` / `thread_id` in the body) becomes the `thread_id`
+**from the first request**, including requests without an assistant message yet. Reuse that identity
+through every tool call and result. Changing it mid-cycle disconnects the pending broker invocation.
+The `turn_id` stays stable while returning results for the same user message, then changes for a new
+user message.
 
-Without any identifier, each request gets a fresh thread and is fully stateless — the history you
-send still provides the context.
+Requests declaring tools or returning tool results require an explicit conversation identifier;
+otherwise they fail with HTTP 400 before starting a browser turn. Text-only requests without an
+identifier remain isolated. Use a new identifier when starting a new conversation; do not reuse an
+old identifier with its history removed.
 
 ### Tools
 
@@ -64,6 +66,23 @@ with the current turn id, which keeps the tool round inside one browser turn.
 
 `function_call` / `finish_reason: "function_call"` is emitted for the legacy shape;
 `tool_calls` / `finish_reason: "tool_calls"` for the modern one.
+
+Hermes' `terminal` function is advertised upstream as `shell_command`, which the connector's
+`codex_exec` dispatcher recognizes. Calls return to the client as `terminal`; the caller executes
+them under its own permissions and sends the result back. This is a protocol translation, not
+prompt-based renaming, and works even when the user asks for “the terminal”.
+
+- `command` and `workdir` are preserved.
+- `timeout` in seconds is advertised as `timeout_ms`; returned milliseconds are converted back
+  (rounded up for an integer-seconds schema).
+- Tool history, explicit tool choice, legacy functions, JSON responses and SSE use the same mapping.
+- SSE buffers adapted tool arguments until their complete JSON arrives; unrelated text still streams.
+- An explicitly declared `shell_command` or `exec_command` takes precedence; it is never overwritten.
+- Unsupported native arguments, including escalation requests the caller cannot represent, produce
+  an explicit error rather than being silently discarded.
+
+The mapping is specific to `terminal` with a string `command` property. Other harness tool contracts
+are forwarded unchanged, not guessed from their descriptions.
 
 ### Reasoning effort
 
@@ -100,34 +119,22 @@ upstream token counters.
 
 ### `INVALID_ARGUMENT: This Codex turn did not advertise a native command tool or the native exec gateway`
 
-Symptom: the model answers in prose claiming it tried "Codex Native" and failed, instead of calling
-your declared function tool.
+Older versions forwarded Hermes' `terminal` name unchanged. ChatGPT selected `codex_exec`, whose
+dispatcher looks for `exec_command` or `shell_command`; consequently it could not dispatch the call.
+The current compatibility layer translates this contract as described above.
 
-Cause: in `full` mode the browser tab carries the `Codex Native2` connector, and ChatGPT routes
-shell-shaped requests to it. The connector's `codex_exec` resolves a **native** `exec_command` /
-`shell_command` from the outer Codex turn (`src/adapters/chatgpt-web/mcp-server.ts`). A Chat
-Completions client does not advertise that native registry, so the call cannot be served — with or
-without the tunnel running.
+Do not disable the connector or switch to `browser-only` as a workaround. In this architecture,
+structured tool calls arrive through MCP and the broker, not by parsing JSON written in model prose.
+The launcher, connector and `full` mode remain necessary.
 
-Measured behaviour on 6.1.10 (same request, only names changed):
-
-| Declared tool | Prompt wording | Result |
-| --- | --- | --- |
-| `run_echo` (neutral description) | "use run_echo" | declared function called |
-| `run_command` (shell description) | "use run_command" | declared function called |
-| `terminal` (neutral description) | "use terminal" | routed to Codex Native, fails |
-| `exec` (neutral description) | "use exec" | routed to Codex Native, fails |
-
-Renaming the declared tool alone does not help: when the prompt says "terminal", the model still
-prefers the connector.
-
-What to do:
-
-1. Use declared function tools whose purpose is not shell execution (file, HTTP, database, custom
-   APIs). Those work.
-2. Do shell work through Codex itself, which owns the native registry.
-3. For harness-only installations, run the app in `browser-only` mode so no connector is attached
-   and the model only sees declared tools.
+End-to-end verification used the existing signed-in launcher and a development adapter connected
+to its external-owner broker. Hermes received `terminal`, executed `echo ASTRA_HERMES_REAL_OK`,
+stored `{"output":"ASTRA_HERMES_REAL_OK","exit_code":0,"error":null}`, returned the result and received
+the final answer. No replacement of the installed launcher or removal of the account connector
+was needed.
+A second Hermes run read `NOTICE` through `read_file`, then executed `cmd /c exit 7` through
+`terminal`. The tool record preserved `exit_code: 7` and the final answer reported the failure,
+confirming that non-shell tools and error results still complete their round trips.
 
 ### `GPT-6 Sol (Web) does not support effort "none" for this account`
 
@@ -137,10 +144,10 @@ URL) or is running an older build.
 
 ## Limitations
 
-- **Local tools need the tunnel.** In `full` mode ChatGPT is told about the Codex Native harness;
-  shell-shaped work is routed there and fails with `INVALID_ARGUMENT` when the `Codex Native2`
-  connector is not connected. Connect the tunnel in the launcher's MCP page to use it.
-- **No conversation state.** `previous_response_id` is not supported; resend the history.
+- **Local tools need the connector and broker.** Keep `full` mode and the launcher's MCP connection
+  available. The compatibility layer does not provide a second local executor.
+- **The caller owns history.** `previous_response_id` is not supported; resend the history and keep
+  the conversation identifier stable throughout tool execution.
 - **Latency** is a browser turn: seconds, not milliseconds.
 - **Account-dependent models and efforts.** The catalog and the accepted efforts follow the signed-in
   ChatGPT account.
@@ -162,5 +169,5 @@ git fetch --tags upstream
 git rebase --onto v6.1.11 v6.1.10 feat/harness-compat
 ```
 
-Run `bun run typecheck && bun test tests/harness-compat.test.ts` after each rebase, plus a real
+Run `bun run typecheck && bun test tests/harness-compat.test.ts tests/harness-native-tools.test.ts` after each rebase, plus a real
 end-to-end turn, because the upstream releases frequently change browser-turn semantics.

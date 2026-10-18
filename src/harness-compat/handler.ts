@@ -14,6 +14,7 @@ import {
   type ResponsesEnvelope,
 } from "./convert";
 import { responsesStreamToChat } from "./stream";
+import { NativeTerminalMapping } from "./native-terminal";
 
 export interface ChatCompletionsDependencies {
   /** Invokes the production Responses handler with an already-translated payload. */
@@ -35,8 +36,10 @@ export async function chatCompletionsRequest(
   }
 
   let built: BuiltRequest;
+  let terminalMapping: NativeTerminalMapping | undefined;
   try {
     built = buildResponsesRequest(raw as ChatCompletionBody, req.headers);
+    terminalMapping = NativeTerminalMapping.apply(built.payload);
   } catch (error) {
     return formatErrorResponse(400, "invalid_request_error", error instanceof Error ? error.message : String(error));
   }
@@ -65,6 +68,7 @@ export async function chatCompletionsRequest(
         model: built.model,
         legacy: built.legacy,
         includeUsage: (raw as ChatCompletionBody).stream_options?.include_usage === true,
+        terminalMapping,
       }),
       {
         status: 200,
@@ -85,7 +89,7 @@ export async function chatCompletionsRequest(
     return formatErrorResponse(502, "upstream_error", error instanceof Error ? error.message : "Invalid upstream response");
   }
   try {
-    return Response.json(toChatCompletion(envelope, built.model, built.legacy));
+    return Response.json(toChatCompletion(terminalMapping ? terminalMapping.response(envelope) : envelope, built.model, built.legacy));
   } catch (error) {
     return formatErrorResponse(502, "upstream_error", error instanceof Error ? error.message : String(error));
   }

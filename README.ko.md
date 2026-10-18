@@ -67,9 +67,9 @@ curl http://127.0.0.1:17841/v1/chat/completions \
   -d '{"model":"chatgpt-web/gpt-6-sol","messages":[{"role":"user","content":"Responda OK"}]}'
 ```
 
-매 요청마다 전체 기록을 보내세요. 데몬은 대화 상태를 저장하지 않습니다. 도구 호출, 스트리밍, 사용량, 레거시
-`functions` 형식도 변환됩니다. 로컬 shell 도구는 여전히 MCP 페이지의 `Codex Native2` 커넥터가 필요합니다.
-자세한 내용과 제한: [docs/harness-compat.md](docs/harness-compat.md).
+매 요청마다 전체 기록을 보내고 첫 도구 요청부터 같은 세션 ID를 유지하세요. 기록은 호출자가,
+대기 중인 도구 호출은 broker가 보관합니다. Hermes의 `terminal`은 `shell_command`로 양방향 변환됩니다.
+`full` 모드와 `Codex Native2` 커넥터를 유지하세요. 자세한 내용: [docs/harness-compat.md](docs/harness-compat.md).
 
 <details>
 <summary><strong>터미널 설치, 업데이트 및 복구</strong></summary>

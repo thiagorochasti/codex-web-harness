@@ -67,9 +67,9 @@ curl http://127.0.0.1:17841/v1/chat/completions \
   -d '{"model":"chatgpt-web/gpt-6-sol","messages":[{"role":"user","content":"Responda OK"}]}'
 ```
 
-毎回のリクエストで履歴全体を送ってください。デーモンは会話状態を保存しません。ツール呼び出し、ストリーミング、
-使用量、旧来の `functions` 形式も変換されます。ローカル shell ツールには MCP ページの `Codex Native2`
-コネクタが引き続き必要です。詳細と制限: [docs/harness-compat.md](docs/harness-compat.md)。
+毎回履歴全体を送り、最初のツールリクエストから同じセッション ID を使用してください。履歴は呼び出し側、
+保留中のツール呼び出しは broker が保持します。Hermes の `terminal` は `shell_command` と相互変換されます。
+`full` モードと `Codex Native2` コネクタを有効にしてください。詳細: [docs/harness-compat.md](docs/harness-compat.md)。
 
 <details>
 <summary><strong>ターミナルからのインストール・更新・修復</strong></summary>

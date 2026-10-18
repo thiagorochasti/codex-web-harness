@@ -168,12 +168,29 @@ describe("conversão de request", () => {
     expect(turnIdOf(output ?? {})).toBe(metadataOf(payload).turn_id);
   });
 
-  test("não reutiliza conversa sem resposta anterior", () => {
-    const body: ChatCompletionBody = { model: "chatgpt-web/gpt-6-sol", messages: [user("Olá")] };
-    const first = metadataOf(build(body).payload);
-    const second = metadataOf(build(body).payload);
-    expect(first.thread_id).not.toBe("thread-test");
-    expect(second.thread_id).not.toBe(first.thread_id);
+  test("preserva identidade desde a primeira chamada até o retorno da ferramenta", () => {
+    const messages: ChatCompletionBody["messages"] = [user("Execute o comando")];
+    const first = metadataOf(build({ messages }).payload);
+    messages.push(
+      { role: "assistant", content: null, tool_calls: [{ id: "call-1", type: "function", function: { name: "terminal", arguments: "{\"command\":\"echo ok\"}" } }] },
+      { role: "tool", tool_call_id: "call-1", content: "ok" },
+    );
+    expect(metadataOf(build({ messages }).payload)).toEqual(first);
+    messages.push({ role: "assistant", content: "ok" }, user("Outro comando"));
+    const next = metadataOf(build({ messages }).payload);
+    expect(next.thread_id).toBe(first.thread_id);
+    expect(next.turn_id).not.toBe(first.turn_id);
+    expect(metadataOf(build({ messages }, { "x-codex-thread-id": "other-session" }).payload).thread_id).not.toBe(first.thread_id);
+  });
+
+  test("exige identidade do chamador antes de iniciar um ciclo de ferramentas", () => {
+    expect(() => buildResponsesRequest({
+      messages: [user("Execute")],
+      tools: [{ type: "function", function: { name: "terminal", parameters: { type: "object" } } }],
+    }, new Headers())).toThrow("stable x-codex-thread-id");
+    const text = { messages: [user("Oi")] };
+    expect(metadataOf(buildResponsesRequest(text, new Headers()).payload).thread_id)
+      .not.toBe(metadataOf(buildResponsesRequest(text, new Headers()).payload).thread_id);
   });
 
   test("reaproveita a identidade quando há histórico do assistente", () => {

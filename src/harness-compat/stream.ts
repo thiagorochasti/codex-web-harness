@@ -6,6 +6,7 @@
  */
 import { randomUUID } from "node:crypto";
 import { asRecord } from "../lib/records";
+import type { NativeTerminalMapping } from "./native-terminal";
 import {
   collectOutput,
   finishReasonFor,
@@ -34,6 +35,7 @@ interface StreamOptions {
   model: string;
   legacy: boolean;
   includeUsage: boolean;
+  terminalMapping?: NativeTerminalMapping;
 }
 
 function frame(id: string, model: string, delta: Record<string, unknown>, finishReason: string | null = null): string {
@@ -208,6 +210,11 @@ export function responsesStreamToChat(
               write("data: [DONE]\n\n");
               controller.close();
               return;
+            }
+            if (options.terminalMapping) {
+              const mapped = options.terminalMapping.event(event);
+              if (!mapped) continue;
+              event = mapped;
             }
             const type = String(event.type ?? "");
             const response = asRecord(event.response) as ResponsesEnvelope | undefined;

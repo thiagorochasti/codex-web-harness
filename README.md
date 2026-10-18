@@ -68,9 +68,10 @@ curl http://127.0.0.1:17841/v1/chat/completions \
   -d '{"model":"chatgpt-web/gpt-6-sol","messages":[{"role":"user","content":"Responda OK"}]}'
 ```
 
-Send the full history on every request: the daemon stores no conversation state. Tool calls,
-streaming, usage and the legacy `functions` shape are translated too. Local shell tools still need
-the `Codex Native2` connector from the MCP page. Details and limitations:
+Send the full history on every request and keep the session identifier stable from the first tool
+request. The caller owns history; the broker retains pending tool calls. Hermes `terminal` is
+translated to native `shell_command` and back, including streamed arguments and timeout units.
+Keep `full` mode and the `Codex Native2` connector available. Details and limitations:
 [docs/harness-compat.md](docs/harness-compat.md).
 
 <details>

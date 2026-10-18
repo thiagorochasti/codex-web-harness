@@ -292,6 +292,15 @@ export function resolveThreadId(headers: Headers, body: ChatCompletionBody): str
   if (header?.trim()) return header.trim();
   if (typeof body.conversation_id === "string" && body.conversation_id.trim()) return body.conversation_id.trim();
   if (typeof body.thread_id === "string" && body.thread_id.trim()) return body.thread_id.trim();
+  const hasToolCycle = (Array.isArray(body.tools) && body.tools.length > 0)
+    || (Array.isArray(body.functions) && body.functions.length > 0)
+    || body.messages?.some(message => message?.role === "tool" || message?.role === "function"
+      || (Array.isArray(message?.tool_calls) && message.tool_calls.length > 0)
+      || message?.function_call !== undefined);
+  if (hasToolCycle) {
+    throw new Error("Tool cycles require a stable x-codex-thread-id, conversation_id, or thread_id from the first request");
+  }
+  // Without caller-owned identity, text-only requests are isolated rather than joined by content.
   return `thread_${randomUUID().replaceAll("-", "")}`;
 }
 
@@ -309,10 +318,7 @@ export function buildResponsesRequest(body: ChatCompletionBody, headers: Headers
   if (body.n !== undefined && body.n !== 1) throw new Error("This bridge supports n=1 only");
   const model = typeof body.model === "string" && body.model ? body.model : "chatgpt-web/gpt-6-sol";
   const cwd = resolveCwd(headers, body);
-  const hasAssistantHistory = body.messages.some(message => message?.role === "assistant");
-  // Reusing a conversation requires a continuation prompt, which the upstream builds from the
-  // messages after the last assistant answer. Without one the request is isolated instead.
-  const threadId = hasAssistantHistory ? resolveThreadId(headers, body) : `thread_${randomUUID().replaceAll("-", "")}`;
+  const threadId = resolveThreadId(headers, body);
   const anchorIndex = body.messages.reduce((last, message, index) => (message?.role === "user" ? index : last), -1);
   const anchorText = textOf(body.messages[anchorIndex]?.content);
   const turnId = `turn_${createHash("sha256")
