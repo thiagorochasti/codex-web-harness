@@ -24,6 +24,7 @@ import { providerConfig } from "./config";
 import { AsyncEventQueue } from "./event-queue";
 import { readJsonRequestBody } from "./http-body";
 import { chatCompletionsRequest } from "./harness-compat/handler";
+import { chatCompletionsModelCatalog, isLocalHarnessModelDiscovery } from "./harness-compat/models";
 import { httpStatusFromTerminalError } from "./lib/errors";
 import { createHash } from "node:crypto";
 import { augmentNativeModelCatalog } from "./model-catalog";
@@ -1180,6 +1181,21 @@ export function startServer(
             "server_error",
             "codex-chatgpt-web is draining for a requested service operation",
           );
+        }
+        // Chat Completions clients discover local Web models without a Codex OAuth token.
+        // Native Codex clients supply Bearer authentication and retain their full catalog.
+        if (isLocalHarnessModelDiscovery(req)) {
+          return httpTurns.track(async () => {
+            const response = chatCompletionsModelCatalog(config);
+            const request = ++modelCatalogRequests;
+            const at = new Date().toISOString();
+            if (!req.signal.aborted) {
+              lastModelCatalogResult = { request, at, status: response.status };
+              successfulModelCatalogRequests += 1;
+              lastSuccessfulModelCatalogRequestAt = at;
+            }
+            return response;
+          }, req.signal, process.platform, "models");
         }
         return httpTurns.track(async signal => {
           const request = ++modelCatalogRequests;

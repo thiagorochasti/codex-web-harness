@@ -145,6 +145,26 @@ describe("conversão de request", () => {
     expect(ids(build(body).payload)).toEqual(ids(build(body).payload));
   });
 
+  test("imagens diferentes com a mesma pergunta nunca reutilizam a identidade do turno", () => {
+    const content = (bytes: string) => [
+      { type: "text", text: "O que aparece na imagem?" },
+      { type: "image_url", image_url: { url: `data:image/png;base64,${bytes}` } },
+    ];
+    const buildImage = (bytes: string) => build({
+      model: "chatgpt-web/gpt-6-sol",
+      messages: [{ role: "user", content: content(bytes) }],
+    }).payload;
+    const a = buildImage("AAAA");
+    const b = buildImage("AQID");
+    expect(metadataOf(a).turn_id).not.toBe(metadataOf(b).turn_id);
+    expect(itemsOf(a)[1]!.id).not.toBe(itemsOf(b)[1]!.id);
+    expect(metadataOf(a).turn_id).toBe(metadataOf(buildImage("AAAA")).turn_id);
+    expect(itemsOf(a)[1]!.content).toEqual([
+      { type: "input_text", text: "O que aparece na imagem?" },
+      { type: "input_image", image_url: "data:image/png;base64,AAAA" },
+    ]);
+  });
+
   test("preserva function_call e function_call_output com metadata do turno", () => {
     const callId = "call_abc";
     const { payload } = build({

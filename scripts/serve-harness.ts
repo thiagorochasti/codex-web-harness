@@ -1,11 +1,13 @@
 import { mkdirSync } from "node:fs";
 import { join, resolve } from "node:path";
+import { homedir } from "node:os";
 import { loadConfig } from "../src/config";
 import { createLauncherDevAdapter } from "../src/dev-chat/driver";
 import { startServer } from "../src/server";
 
 // Run the fork's HTTP surface alongside the installed launcher. Tool calls belong to the
 // launcher's existing external-owner broker, so its MCP connector can resolve their tokens.
+process.env.CODEX_CHATGPT_WEB_HOME ??= join(homedir(), ".codex-chatgpt-web");
 const config = loadConfig();
 if (config.mode !== "full" || config.browserHost !== "launcher") {
   throw new Error("Harness service requires the installed launcher in full mode");

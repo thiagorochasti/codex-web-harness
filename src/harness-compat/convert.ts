@@ -76,6 +76,16 @@ export function textOf(content: unknown): string {
     .join("");
 }
 
+/** An image is part of the user message identity even when its caption is unchanged. */
+function contentIdentity(content: unknown): string {
+  const text = textOf(content);
+  if (!Array.isArray(content) || !content.some(raw => {
+    const part = asRecord(raw);
+    return part && part.type !== "text" && part.type !== "input_text";
+  })) return text;
+  return `${text}\u0000image:${createHash("sha256").update(JSON.stringify(content)).digest("hex")}`;
+}
+
 function contentParts(content: unknown, role: string): unknown[] {
   if (content === undefined || content === null) return [];
   if (typeof content === "string") return content ? [{ type: "input_text", text: content }] : [];
@@ -177,7 +187,7 @@ function environmentItem(cwd: string, turnId: string, threadId: string): Record<
 function userItem(content: unknown, threadId: string, turnId: string, index: number, metadata: boolean): Record<string, unknown> {
   return {
     type: "message",
-    id: stableId("msg", threadId, String(index), "user", textOf(content)),
+    id: stableId("msg", threadId, String(index), "user", contentIdentity(content)),
     role: "user",
     content: contentParts(content, "user"),
     ...(metadata ? { internal_chat_message_metadata_passthrough: { turn_id: turnId } } : {}),
@@ -320,7 +330,7 @@ export function buildResponsesRequest(body: ChatCompletionBody, headers: Headers
   const cwd = resolveCwd(headers, body);
   const threadId = resolveThreadId(headers, body);
   const anchorIndex = body.messages.reduce((last, message, index) => (message?.role === "user" ? index : last), -1);
-  const anchorText = textOf(body.messages[anchorIndex]?.content);
+  const anchorText = contentIdentity(body.messages[anchorIndex]?.content);
   const turnId = `turn_${createHash("sha256")
     .update(`${threadId}\u0000${anchorIndex}\u0000${anchorText}`)
     .digest("hex")

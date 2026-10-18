@@ -26,11 +26,42 @@
 
 Use the ChatGPT Web models available on your account, including Pro, from Codex’s native model picker—with ChatGPT Web’s separate usage limits, without spending your Work or Codex quota. Keep the same interface, tasks, images, and streaming.
 
+## Codex Web Harness — new in this fork
+
+**Use ChatGPT Web GPT-6 in Hermes Agent and other OpenAI-compatible harnesses.**
+This fork adds a local **Chat Completions API** with model discovery, streaming,
+structured tool calls and **native image input**. Hermes can use the same GPT-6 Sol
+bridge for its **main conversations, screenshot/image analysis, context compression,
+titles, session search and other auxiliary LLM tasks**. Tools still execute within
+Hermes or the existing MCP integration.
+
+### Easy Windows installation for Hermes
+
+1. Install the [original ChatGPT Web launcher](https://github.com/miuuyy/codex-chatgpt-web/releases/latest), sign in and enable **Full harness**, including the MCP connection. Install [Hermes Agent](https://github.com/NousResearch/hermes-agent) if needed.
+2. Run these PowerShell commands:
+
+   ```powershell
+   git clone -b feat/harness-compat https://github.com/thiagorochasti/codex-web-harness.git
+   cd codex-web-harness
+   powershell -ExecutionPolicy Bypass -File .\scripts\install-hermes-bridge.ps1
+   ```
+
+3. Restart Hermes. GPT-6 and all configured auxiliary LLM routes now point to
+   `http://127.0.0.1:17941/v1`. The installer saves a timestamped backup of the
+   original Hermes configuration and sets up automatic bridge startup at Windows logon.
+
+For a read-only prerequisites check, add `-CheckOnly` to the installer command.
+For other OpenAI-compatible clients, use `-SkipHermes` and configure the bridge manually
+with model `chatgpt-web/gpt-6-sol` and placeholder API key `no-key-required`.
+Model access and context vary by account; the GPT-6 Sol window tested on this
+Windows setup was **120,000 tokens**.
+See [harness compatibility](docs/harness-compat.md) for API details and limitations.
+
 > **Fork notice.** This repository is a modified fork of
-> [miuuyy/codex-chatgpt-web](https://github.com/miuuyy/codex-chatgpt-web). Its addition is a
-> Chat Completions compatibility surface, so harnesses that are not Codex can use the same
-> ChatGPT Web models — see [docs/harness-compat.md](docs/harness-compat.md).
-> Everything else (browser automation, launcher, tunnel, MCP, packaging) is upstream work.
+> [miuuyy/codex-chatgpt-web](https://github.com/miuuyy/codex-chatgpt-web).
+> The Chat Completions bridge, Hermes all-LLM routing, vision compatibility and Windows
+> installation scripts are maintained in this fork. Browser automation, the original
+> launcher, tunnel, MCP and packaging derive from upstream.
 > Not affiliated with OpenAI.
 
 Full harness mode connects ChatGPT to the current task’s files, terminal, tools, and approvals through MCP. Conversations stay tied to your Codex task, so you can keep working as the context grows.
@@ -50,19 +81,20 @@ The app includes its browser and runtime. No separate Chrome, Node, or Bun insta
 
 ## Use from another harness
 
-The daemon also answers `POST /v1/chat/completions`, so any OpenAI-compatible harness (Hermes Agent,
-omp, OmniRoute, custom scripts) can drive the models the Codex picker shows. The translation runs
-in-process: no second daemon, no extra port.
+The daemon also answers `POST /v1/chat/completions`, so any OpenAI-compatible harness
+(Hermes Agent, omp, OmniRoute, custom scripts) can drive ChatGPT Web models.
+The bridge may run in-process with the fork's daemon or on the fork's separate
+Windows listener alongside an installed launcher.
 
 | Setting | Value |
 | --- | --- |
-| Base URL | `http://127.0.0.1:17841/v1` |
+| Base URL | `http://127.0.0.1:17941/v1` (sidecar) or port 17841 when running the fork directly |
 | Model | `chatgpt-web/gpt-6-sol` (or another `chatgpt-web/*` row) |
-| API key | any non-empty value; authentication is the browser session |
+| API key | `no-key-required` placeholder; authentication uses the signed-in browser session |
 | Session | `x-codex-thread-id: <stable conversation id>` |
 
 ```bash
-curl http://127.0.0.1:17841/v1/chat/completions \
+curl http://127.0.0.1:17941/v1/chat/completions \
   -H 'content-type: application/json' \
   -H 'x-codex-thread-id: demo-thread' \
   -d '{"model":"chatgpt-web/gpt-6-sol","messages":[{"role":"user","content":"Responda OK"}]}'

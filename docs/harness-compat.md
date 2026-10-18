@@ -10,8 +10,9 @@ harness (Chat Completions) ──▶ codex-chatgpt-web daemon ──▶ ChatGPT 
                                   (/v1/chat/completions)
 ```
 
-The translation happens inside the daemon and calls the same in-process Responses handler Codex
-uses. There is no second process, port, or credential.
+The translation happens inside the fork's Responses handler. It can run directly
+in the fork's daemon or as a **sidecar listener on port 17941** alongside an installed
+launcher. Both paths use the signed-in ChatGPT browser session.
 
 ## Why a fork
 
@@ -21,23 +22,38 @@ a thin edge: the compatibility module plus one route.
 
 ## Quick start
 
-1. Install and sign in with the launcher as usual (ChatGPT Web connection, model install).
-2. Point your harness at the daemon:
+1. Install and sign in with the upstream ChatGPT Web launcher in **Full harness** mode.
+2. On Windows, clone this fork and run the one-command setup:
+
+   ```powershell
+   git clone -b feat/harness-compat https://github.com/thiagorochasti/codex-web-harness.git
+   cd codex-web-harness
+   powershell -ExecutionPolicy Bypass -File .\scripts\install-hermes-bridge.ps1
+   ```
+
+   The installer checks the upstream launcher and Bun, installs missing fork dependencies,
+   sets up a per-user Windows scheduled task at logon, configures Hermes when installed,
+   backs up its YAML and verifies that GPT-6 Sol appears in the local model catalog.
+   To only inspect prerequisites, pass `-CheckOnly`. To install the bridge for a
+   different client, pass `-SkipHermes`. Restart Hermes after configuration.
+
+3. Point any OpenAI-compatible harness at the sidecar:
 
 | Setting | Value |
 | --- | --- |
-| Base URL | `http://127.0.0.1:17841/v1` |
+| Base URL | `http://127.0.0.1:17941/v1` (sidecar) |
 | Endpoint | `POST /v1/chat/completions` |
 | Model | `chatgpt-web/gpt-6-sol` |
-| API key | any non-empty value; the daemon authenticates through the browser session |
+| API key | `no-key-required` placeholder; the browser session authenticates |
 | Session header | `x-codex-thread-id: <stable conversation id>` |
 
-3. Send the full conversation history on every request. The compatibility layer does not persist it; the upstream broker keeps pending tool calls until their results arrive.
+4. Send the full conversation history on every request. The compatibility layer
+does not persist it; the upstream broker keeps pending tool calls until their results arrive.
 
 Example:
 
 ```bash
-curl http://127.0.0.1:17841/v1/chat/completions \
+curl http://127.0.0.1:17941/v1/chat/completions \
   -H 'content-type: application/json' \
   -H 'x-codex-thread-id: demo-thread' \
   -d '{"model":"chatgpt-web/gpt-6-sol","messages":[{"role":"user","content":"Responda OK"}]}'
@@ -55,10 +71,37 @@ same tool tokens. Browser diagnostics and turn state are isolated under `runtime
 The extra HTTP listener has its own local broker socket and does not replace the installed daemon.
 The launcher must remain available while processing requests.
 
-On this Windows deployment, the scheduled task `Codex Web Harness Bridge` runs this entry point
-at user logon with no execution time limit and ignores duplicate starts. The Hermes `codex-web`
-provider uses port `17941`; the old shim on `17842` is stopped. Restart an already-open Hermes
+The Windows helper `scripts/install-hermes-bridge.ps1` registers the `Codex Web Harness Bridge`
+scheduled task for logon with no execution time limit and ignores duplicate starts.
+The Hermes `codex-web` provider uses port `17941`. Restart an already-open Hermes
 process to reload its provider configuration, then start a fresh conversation.
+
+### Using GPT-6 Sol for all Hermes LLM tasks
+
+The main installer runs `scripts/configure-hermes-gpt6.ps1` for you. You can also run
+`powershell -File scripts/configure-hermes-gpt6.ps1` independently to configure
+the active `$HERMES_HOME/config.yaml` profile for GPT-6 Sol over
+`http://127.0.0.1:17941/v1` (falling back to `~/.hermes` when `HERMES_HOME` is unset).
+The script saves a timestamped YAML backup before updating the main model, native
+image routing and every configured auxiliary LLM task (13 in the tested Windows
+profile, including `vision`, `compression`, `title_generation` and `monitor`).
+It installs or updates the `codex-web` provider, preserves other provider entries
+and disables automatic external fallback for the single-model setup.
+The model context limit is taken from the bridge's catalog: 120,000 tokens for
+GPT-6 Sol in this deployment. Relaunch Hermes to load the new YAML.
+
+For local SDK clients, `GET /v1/models` accepts either no Authorization header or
+the standard `Bearer no-key-required` placeholder and returns the locally enabled
+ChatGPT Web models in OpenAI Chat Completions catalog format. A real Codex OAuth
+Bearer token continues through the authenticated native Codex catalog path.
+Images can be sent as `image_url` content parts in `POST /v1/chat/completions`.
+The compatibility layer hashes multimodal content into turn identity so changing
+an image while keeping its caption does not reuse the old image turn.
+
+To restore the previous Hermes configuration, close Hermes, copy the timestamped
+`config.yaml.bak-gpt6-*` file back over `config.yaml` in the active Hermes home
+and restart the app. To stop automatic bridge startup, disable the `Codex Web Harness Bridge`
+task in Windows Task Scheduler. The installer never edits the upstream launcher.
 
 ## Behaviour
 
